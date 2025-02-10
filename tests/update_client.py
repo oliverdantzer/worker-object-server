@@ -3,24 +3,13 @@ import asyncio
 from websockets.asyncio.client import connect, ClientConnection
 import time
 import queue
-import common
+from worker_object_server.update import UpdatePacket, update_dict, Position
 import threading
 
-# self.jsonFile = jsonFile
-#         try:
-#             with open(self.jsonFile, "r") as file:
-#                 self.data = json.load(file)
-#         except FileNotFoundError:
-#             raise FileNotFoundError(f"{self.jsonFile} not found")
 
-
-# class RefDict:
-#     def __init__(self, data: dict):
-#         self.data = data
-
-class ConnectorClient:
+class UpdateClient:
     update_event: asyncio.Event
-    update_queue: 'queue.Queue[common.JsonUpdate]'
+    update_queue: 'queue.Queue[UpdatePacket]'
 
     def __init__(self, data: dict):
         self.data = data
@@ -32,32 +21,27 @@ class ConnectorClient:
     async def start_recieve(self, websocket):
         while True:
             data = await websocket.recv()
-            data = json.loads(data)
-            if data["type"] == "update":
-                update = common.Update(data["timestamp"], common.Position.from_str(
-                    data["position"]), data["data"])
-                self.handle_incoming_update(update)
+            self.handle_incoming_update(
+                UpdatePacket.from_json_str(data.decode()))
 
     async def start(self):
         async with connect("ws://localhost:8765") as websocket:
             print("server connection established")
             await asyncio.gather(self.start_recieve(websocket), self.start_send(websocket))
 
-    def handle_incoming_update(self, update: common.Update):
-        common.update_dict(self.data, update)
-        json_update = common.JsonUpdate.from_update(update)
+    def handle_incoming_update(self, update: UpdatePacket):
+        update_dict(self.data, update)
 
     # add update to queue
-    def add_update(self, update: common.Update):
+    def add_update(self, update: UpdatePacket):
         # update data
-        common.update_dict(self.data, update)
-
-        json_update = common.JsonUpdate.from_update(update)
+        update_dict(self.data, update)
+        
         with self.lock:
-            self.update_queue.put(json_update)
+            self.update_queue.put(update)
             self.update_event.set()
 
-    def get_value(self, position: common.Position):
+    def get_value(self, position: Position):
         current = self.data
         for key in position.position:
             current = current[key]
@@ -75,11 +59,7 @@ class ConnectorClient:
                 if self.update_queue.empty():
                     self.update_event.clear()
 
-                await websocket.send(common.build_update_packet(update))
-
-                # write to json file
-                with open("data.json", "w") as file:
-                    json.dump(self.data, file)
+                await websocket.send(update.json())
 
     def start_threading(self):
         def run():
@@ -91,5 +71,5 @@ class ConnectorClient:
 
 
 if __name__ == "__main__":
-    client = ConnectorClient({})
+    client = UpdateClient({})
     client.start_threading()

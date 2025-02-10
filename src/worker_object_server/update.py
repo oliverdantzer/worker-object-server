@@ -26,34 +26,44 @@ class JsonIterable(BaseModel):
 class Position(BaseModel):
     __root__: List[str]
 
-    def __init__(self, position: list[str] = []):
-        self.position = position.copy()
+    def __init__(self, position: List[str] = []):
+        super().__init__(__root__=position or [])
 
+    # string representation for debugging
     def __repr__(self):
-        return ".".join(self.position)
+        return ".".join(self.__root__)
 
     def __add__(self, other: str):
-        return Position(self.position + [other])
+        return Position(self.__root__ + [other])
 
     @staticmethod
     def from_str(string: str) -> 'Position':
         position = string.split(".")
         return Position(position)
 
+    def serialize(self):
+        return self.__root__.copy()
+
+
 class Update(BaseModel):
     timestamp: datetime
-    position: List[str]
+    position: Position
     data: Any
 
-class UpdatePacket(BaseModel, Update):
+
+class UpdatePacket(BaseModel):
     timestamp: datetime
     position: List[str]
     data: JsonObj
-    
+
     @staticmethod
     def from_update(update: Update) -> UpdatePacket:
-        return UpdatePacket(**update)
-    
+        return UpdatePacket(
+            timestamp=update.timestamp,
+            position=update.position.serialize(),
+            data=JsonObj(__root__=update.data)
+        )
+
     @staticmethod
     def from_json_str(string: str) -> UpdatePacket:
         obj = json.loads(string)

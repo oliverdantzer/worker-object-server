@@ -4,11 +4,11 @@ from websockets.asyncio.server import serve, ServerConnection
 from pydantic import ValidationError
 import time
 import queue
-from update import UpdatePacket, Position, update_dict, Update
+from .update import UpdatePacket, Position, update_dict, Update
 import threading
 
 
-class ConnectorServer:
+class UpdateServer:
     update_event: 'asyncio.Event | None'
     update_queue: 'asyncio.Queue[UpdatePacket] | None'
 
@@ -35,6 +35,9 @@ class ConnectorServer:
             # await self.update_full(websocket)
         else:
             data = await websocket.recv()
+            if isinstance(data, bytes):
+                data = data.decode()
+            assert isinstance(data, str)
             try:
                 update = UpdatePacket.from_json_str(data)
                 self.handle_update(update)
@@ -81,10 +84,10 @@ class ConnectorServer:
         asyncio.run(self._start_all())
 
     async def _start_all(self):
-        
+
         await asyncio.gather(self.start_recieve(), self.start_send())
 
 
 if __name__ == "__main__":
-    retry = ConnectorServer({})
+    retry = UpdateServer({})
     retry.start_blocking()
