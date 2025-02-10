@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Any
-import common
+from update import Position, Update
 from typing import Union
 from update_server import ConnectorServer
 import time
@@ -8,10 +8,10 @@ import time
 Indexable = Union[dict, list]
 
 class Object:
-    position: common.Position
+    position: Position
     # x.y.z
     # x[y][z]
-    def __init__(self, db_api: DbApi, position: common.Position):
+    def __init__(self, db_api: DbApi, position: Position):
         self.position = position
         self.db_api = db_api
     
@@ -24,17 +24,17 @@ class Object:
     
     def __setitem__(self, name: str, value: Any) -> None:
         value = self.db_api.get_value(self.position + name)
-        self.db_api.add_update(common.Update(time.time(), self.position + name, value))
+        self.db_api.add_update(Update(time.time(), self.position + name, value))
 
 class DbApi:
     def __init__(self, server: ConnectorServer):
         self.server = server
-        self.root = Object(db_api=self, position=common.Position())
+        self.root = Object(db_api=self, position=Position())
     
-    def get_value(self, position: common.Position) -> Any:
+    def get_value(self, position: Position) -> Any:
         return self.server.get_value(position)
     
-    def add_update(self, update: common.Update) -> None:
+    def add_update(self, update: Update) -> None:
         self.server.add_update(update)
     
     def __getitem__(self, name: str) -> Any:
