@@ -4,13 +4,27 @@ import json
 from datetime import datetime
 from typing import Any, Dict, List, Union
 
-from pydantic import BaseModel, RootModel
+from pydantic import BaseModel, RootModel, ValidationError
 
-JsonObj = RootModel[
-    Union[Dict[str, "JsonObj"], List["JsonObj"], str, int, float, bool, None]
-]
 
-JsonIterable = RootModel[Union[List[JsonObj], Dict[str, JsonObj]]]
+class JsonVal(RootModel):
+    root: Union[Dict[str, "JsonVal"], List["JsonVal"], str, int, float, bool, None]
+
+    @staticmethod
+    def from_obj(obj: Any) -> JsonVal:
+        try:
+            return JsonVal(obj)
+        except ValidationError:
+            if obj.__class__ == Union[Dict[str, "JsonVal"], List["JsonVal"]]:
+                acc = []
+                for item in obj:
+                    try:
+                        acc.append(JsonVal.from_obj(item))
+                    except ValidationError:
+                        pass
+                return JsonVal(acc)
+            else:
+                raise ValueError("Root of obj is not prunable to JSON type")
 
 
 class Position(RootModel):
@@ -19,8 +33,15 @@ class Position(RootModel):
     def __iter__(self):
         return iter(self.root)
 
+    def __getitem__(self, index: Union[int, slice]):
+        return self.root[index]
+
+    # 0 is root position
+    def depth(self):
+        return len(self.root)
+
     # string representation for debugging
-    def __repr__(self):
+    def __str__(self):
         return ".".join(self.root)
 
     def __add__(self, other: str):
@@ -44,14 +65,14 @@ class Update(BaseModel):
 class UpdatePacket(BaseModel):
     timestamp: datetime
     position: List[str]
-    data: JsonObj
+    data: JsonVal
 
     @staticmethod
     def from_update(update: Update) -> UpdatePacket:
         return UpdatePacket(
             timestamp=update.timestamp,
             position=update.position.serialize(),
-            data=JsonObj.model_validate(update.data),
+            data=JsonVal.from_obj(update.data),
         )
 
     def json(self):
