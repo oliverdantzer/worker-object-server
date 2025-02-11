@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import Any
-from .update import Position, Update, UpdatePacket
-from typing import Union
-from .update_server import UpdateServer
+
 from datetime import datetime
+from typing import Any, Union
+
+from .update import Position, Update, UpdatePacket
+from .update_server import UpdateServer
 
 Indexable = Union[dict, list]
 
@@ -25,17 +26,21 @@ class Object:
     def __setitem__(self, name: str, value: Any) -> None:
         value = self.object_server.get_at_position(self.position + name)
         position = self.position + name
-        update = Update(
-            timestamp=datetime.now(), position=position, data=value)
+        update = Update(timestamp=datetime.now(), position=position, data=value)
         self.object_server.add_update(update)
 
 
 class ObjectServer:
-    def __init__(self):
-        self.data = {}
+    def __init__(self, data = {}):
+        self.data = data
         self.server = UpdateServer(
-            get_at_position=self.get_at_position, handle_incoming_update=self.handle_incoming_update)
-        self.root = Object(object_server=self, position=Position())
+            get_at_position=self.get_at_position,
+            handle_incoming_update=self.handle_incoming_update,
+        )
+        self.root = Object(object_server=self, position=Position([]))
+
+    def __repr__(self):
+        return self.data.__repr__()
 
     def get_at_position(self, position: Position) -> Any:
         current = self.data
