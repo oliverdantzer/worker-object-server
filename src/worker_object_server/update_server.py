@@ -1,23 +1,23 @@
-import json
 import asyncio
 from websockets.asyncio.server import serve, ServerConnection
 from pydantic import ValidationError
-import time
-import queue
-from .update import UpdatePacket, Position, update_dict, Update
+from .update import UpdatePacket, Position, Update
 import threading
+from typing import Callable, Any, Set
 
 
 class UpdateServer:
     update_event: 'asyncio.Event | None'
     update_queue: 'asyncio.Queue[UpdatePacket] | None'
+    handle_incoming_update: Callable[[UpdatePacket], None]
 
-    def __init__(self, data: dict):
+    def __init__(self, get_at_position: Callable[[Position], Any], handle_incoming_update: Callable[[UpdatePacket], None]):
         self.port = 8765
 
-        self.data = data
+        self.connections: Set[ServerConnection] = set()
 
-        self.connections: set[ServerConnection] = set()
+        self.get_at_position = get_at_position
+        self.handle_incoming_update = handle_incoming_update
 
         self.update_event = None
         self.update_queue = None
@@ -40,7 +40,7 @@ class UpdateServer:
             assert isinstance(data, str)
             try:
                 update = UpdatePacket.from_json_str(data)
-                self.handle_update(update)
+                self.handle_incoming_update(update)
             except ValidationError:
                 return
 
@@ -48,25 +48,14 @@ class UpdateServer:
         async with serve(self.handle_recieve, "localhost", self.port) as server:
             await server.serve_forever()  # run forever
 
-    def handle_update(self, update: UpdatePacket):
-        update_dict(self.data, update)
-
     # add update to queue
     def add_update(self, update: Update):
         if self.update_queue is None:
             raise ValueError(
                 "update queue not instantiated, call add_update after asyncio.run")
 
-        update_dict(self.data, update)
-
         json_update = UpdatePacket.from_update(update)
         self.update_queue.put_nowait(json_update)
-
-    def get_value(self, position: Position):
-        current = self.data
-        for key in position.position:
-            current = current[key]
-        return current
 
     # infinitely send updates added to queues
     async def start_send(self):
@@ -75,10 +64,6 @@ class UpdateServer:
             update = await self.update_queue.get()
             for websocket in self.connections:
                 await websocket.send(update.json())
-
-            # write to json file
-            with open("data.json", "w") as file:
-                json.dump(self.data, file)
 
     def start_blocking(self):
         asyncio.run(self._start_all())
@@ -89,5 +74,5 @@ class UpdateServer:
 
 
 if __name__ == "__main__":
-    retry = UpdateServer({})
+    retry = UpdateServer(lambda position: 10, lambda update: print(update))
     retry.start_blocking()
