@@ -11,27 +11,29 @@ Indexable = Union[dict, list]
 
 class Object:
     position: Position
+    object_server: ObjectServer
 
     def __init__(self, object_server: ObjectServer, position: Position):
         self.position = position
         self.object_server = object_server
 
     def __getitem__(self, name: str) -> Any:
-        value = self.object_server.get_at_position(self.position + name)
+        position = self.position + name
+        value = self.object_server.get_at_position(position)
         if value is Indexable:
             return Object(self.object_server, self.position + name)
         else:
             return value
 
     def __setitem__(self, name: str, value: Any) -> None:
-        value = self.object_server.get_at_position(self.position + name)
         position = self.position + name
+        self.object_server.set_at_position(position, value)
         update = Update(timestamp=datetime.now(), position=position, data=value)
         self.object_server.add_update(update)
 
 
 class ObjectServer:
-    def __init__(self, data = {}):
+    def __init__(self, data={}):
         self.data = data
         self.server = UpdateServer(
             get_at_position=self.get_at_position,
@@ -43,19 +45,21 @@ class ObjectServer:
         return self.data.__repr__()
 
     def get_at_position(self, position: Position) -> Any:
+        if position.depth() == 0:
+            raise ValueError("Cannot get at root position")
         current = self.data
-        for key in position:
+        for key in position[:-1]:
             current = current[key]
-        return current
+        return current[position[-1]]
 
     def handle_incoming_update(self, update: UpdatePacket):
-        current = self.data
-        for key in update.position[:-1]:
-            current = current[key]
-        current[-1] = update.data
+        self.set_at_position(Position(update.position), update.data)
 
-    def set_at_position(self, position: Position) -> Any:
-        return self.server.get_at_position(position)
+    def set_at_position(self, position: Position, value: Any):
+        current = self.data
+        for key in position[:-1]:
+            current = current[key]
+        current[position[-1]] = value
 
     def add_update(self, update: Update) -> None:
         self.server.add_update(update)
