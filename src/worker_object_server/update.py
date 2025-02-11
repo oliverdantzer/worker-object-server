@@ -16,8 +16,8 @@ JsonIterable = RootModel[Union[List[JsonObj], Dict[str, JsonObj]]]
 class Position(RootModel):
     root: List[str]
 
-    def __init__(self, position: List[str] = []):
-        super().__init__(__root__=position or [])
+    def __iter__(self):
+        return iter(self.root)
 
     # string representation for debugging
     def __repr__(self):
