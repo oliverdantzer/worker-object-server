@@ -1,46 +1,38 @@
 from __future__ import annotations
+
 import json
-from typing import Union, Any, Dict, List
 from datetime import datetime
-from pydantic import BaseModel
+from typing import Any, Dict, List, Union
+
+from pydantic import BaseModel, RootModel
+
+JsonObj = RootModel[
+    Union[Dict[str, "JsonObj"], List["JsonObj"], str, int, float, bool, None]
+]
+
+JsonIterable = RootModel[Union[List[JsonObj], Dict[str, JsonObj]]]
 
 
-class JsonObj(BaseModel):
-    __root__: Union[
-        Dict[str, 'JsonObj'],
-        List['JsonObj'],
-        str,
-        int,
-        float,
-        bool,
-        None
-    ]
-
-
-class JsonIterable(BaseModel):
-    __root__: Union[List[JsonObj], Dict[str, JsonObj]]
-
-
-class Position(BaseModel):
-    __root__: List[str]
+class Position(RootModel):
+    root: List[str]
 
     def __init__(self, position: List[str] = []):
         super().__init__(__root__=position or [])
 
     # string representation for debugging
     def __repr__(self):
-        return ".".join(self.__root__)
+        return ".".join(self.root)
 
     def __add__(self, other: str):
-        return Position(self.__root__ + [other])
+        return Position(self.root + [other])
 
     @staticmethod
-    def from_str(string: str) -> 'Position':
+    def from_str(string: str) -> "Position":
         position = string.split(".")
         return Position(position)
 
     def serialize(self):
-        return self.__root__.copy()
+        return self.root.copy()
 
 
 class Update(BaseModel):
@@ -59,20 +51,13 @@ class UpdatePacket(BaseModel):
         return UpdatePacket(
             timestamp=update.timestamp,
             position=update.position.serialize(),
-            data=JsonObj(__root__=update.data)
+            data=JsonObj.model_validate(update.data),
         )
 
-    @staticmethod
-    def from_json_str(string: str) -> UpdatePacket:
-        obj = json.loads(string)
-        return UpdatePacket(**obj)
-
     def json(self):
-        return json.dumps({
-            "timestamp": self.timestamp,
-            "position": self.position,
-            "data": self.data
-        })
+        return json.dumps(
+            {"timestamp": self.timestamp, "position": self.position, "data": self.data}
+        )
 
 
 def update_dict(data: dict, update: UpdatePacket):

@@ -35,11 +35,8 @@ class UpdateServer:
             # await self.update_full(websocket)
         else:
             data = await websocket.recv()
-            if isinstance(data, bytes):
-                data = data.decode()
-            assert isinstance(data, str)
             try:
-                update = UpdatePacket.from_json_str(data)
+                update = UpdatePacket.model_validate_json(data)
                 self.handle_incoming_update(update)
             except ValidationError:
                 return
