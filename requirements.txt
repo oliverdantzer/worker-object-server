@@ -1,0 +1,6 @@
+# Install the current package in editable mode
+-e .
+
+pydantic
+pytest
+websockets
