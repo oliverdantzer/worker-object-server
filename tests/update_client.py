@@ -3,7 +3,7 @@ import asyncio
 from websockets.asyncio.client import connect, ClientConnection
 import time
 import queue
-from worker_object_server.update import UpdatePacket, update_dict, Position
+from worker_object_server.update import UpdatePacket, update_obj, Position
 import threading
 
 
@@ -22,6 +22,7 @@ class UpdateClient:
         while True:
             data = await websocket.recv()
             self.handle_incoming_update(
+                
                 UpdatePacket.from_json_str(data.decode()))
 
     async def start(self):
@@ -30,20 +31,20 @@ class UpdateClient:
             await asyncio.gather(self.start_recieve(websocket), self.start_send(websocket))
 
     def handle_incoming_update(self, update: UpdatePacket):
-        update_dict(self.data, update)
+        update_obj(self.data, update)
 
     # add update to queue
     def add_update(self, update: UpdatePacket):
         # update data
-        update_dict(self.data, update)
-        
+        update_obj(self.data, update)
+
         with self.lock:
             self.update_queue.put(update)
             self.update_event.set()
 
     def get_value(self, position: Position):
         current = self.data
-        for key in position.position:
+        for key in position:
             current = current[key]
         return current
 
