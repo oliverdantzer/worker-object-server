@@ -6,19 +6,20 @@ from typing import Any, Callable, Set
 
 from pydantic import ValidationError
 from websockets.asyncio.server import ServerConnection, serve
+from websockets.exceptions import ConnectionClosed
 
 from .update import Position, Update, UpdatePacket
 
 
 class UpdateServer:
     update_queue: asyncio.Queue[UpdatePacket]
-    handle_incoming_update: Callable[[UpdatePacket], None]
+    handle_incoming_update: Callable[[Update], None]
     stop_event: asyncio.Event
 
     def __init__(
         self,
         get_at_position: Callable[[Position], Any],
-        handle_incoming_update: Callable[[UpdatePacket], None],
+        handle_incoming_update: Callable[[Update], None],
     ):
         self.port = 8765
 
@@ -34,13 +35,29 @@ class UpdateServer:
     async def handle_recieve(self, websocket):
         if websocket not in self.connections:
             self.connections.add(websocket)
-        else:
-            data = await websocket.recv()
-            try:
-                update = UpdatePacket.model_validate_json(data)
-                self.handle_incoming_update(update)
-            except ValidationError:
-                return
+        try:
+            while True:
+                data = await websocket.recv()
+                try:
+                    update_pkt = UpdatePacket.model_validate_json(data)
+                    update = UpdatePacket.to_update(update_pkt)
+                    self.handle_incoming_update(update)
+                except ValidationError:
+                    continue
+        except asyncio.CancelledError:
+            pass
+        except ConnectionClosed as e:
+            pass
+            # if e.code == 1001:
+            #     print(
+            #         f"Connection closed (going away): {websocket.remote_address}")
+            # else:
+            #     print(f"Connection closed with code {e.code}: {e.reason}")
+        except Exception as e:
+            print(f"Error in handle_recieve: {e}")
+        finally:
+            if websocket in self.connections:
+                self.connections.remove(websocket)
 
     async def start_recieve(self):
         async with serve(self.handle_recieve, "localhost", self.port) as server:
@@ -51,6 +68,7 @@ class UpdateServer:
             server.close()
 
     def add_update(self, update: Update):
+        print("Adding update to queue")
         json_update = UpdatePacket.from_update(update)
         self.update_queue.put_nowait(json_update)
 
@@ -58,6 +76,7 @@ class UpdateServer:
         while not self.stop_event.is_set():
             try:
                 update = await asyncio.wait_for(self.update_queue.get(), timeout=0.1)
+                print("sending update", update)
                 assert isinstance(update, UpdatePacket)
                 for websocket in self.connections:
                     await websocket.send(update.json())
