@@ -101,6 +101,10 @@ class UpdatePacket(BaseModel):
             data=self.data,
         )
 
+    @staticmethod
+    def from_json(json_str: str) -> UpdatePacket:
+        return UpdatePacket.model_validate_json(json_str)
+
     def json(self):
         try:
             return json.dumps(

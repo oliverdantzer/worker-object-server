@@ -10,6 +10,8 @@ from websockets.exceptions import ConnectionClosed
 
 from .update import Position, Update, UpdatePacket
 
+from datetime import datetime
+
 
 class UpdateServer:
     update_queue: asyncio.Queue[UpdatePacket]
@@ -35,11 +37,19 @@ class UpdateServer:
     async def handle_recieve(self, websocket):
         if websocket not in self.connections:
             self.connections.add(websocket)
+
+        root_position = Position([])
+        root_value = self.get_at_position(root_position)
+        root_update = Update(timestamp=datetime.now(),
+                             position=root_position, data=root_value)
+        root_update_packet = UpdatePacket.from_update(root_update)
+        await websocket.send(root_update_packet.json())
+
         try:
             while True:
                 data = await websocket.recv()
                 try:
-                    update_pkt = UpdatePacket.model_validate_json(data)
+                    update_pkt = UpdatePacket.from_json(data)
                     update = UpdatePacket.to_update(update_pkt)
                     self.handle_incoming_update(update)
                 except ValidationError:

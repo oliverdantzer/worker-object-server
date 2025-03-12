@@ -53,8 +53,10 @@ class ObjectServer:
         return self.data.__repr__()
 
     def get_at_position(self, position: Position) -> Any:
+        # if position.depth() == 0:
+        #     raise ValueError("Cannot get at root position")
         if position.depth() == 0:
-            raise ValueError("Cannot get at root position")
+            return self.data
         current = self.data
         for key in position[:-1]:
             current = current[key]
