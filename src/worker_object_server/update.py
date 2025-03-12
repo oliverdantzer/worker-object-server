@@ -6,25 +6,44 @@ from typing import Any, Dict, List, Union
 
 from pydantic import BaseModel, RootModel, ValidationError
 
+type Jsonable = Union[Dict[str, "Jsonable"],
+                      List["Jsonable"], str, int, float, bool, None]
 
-class JsonVal(RootModel):
-    root: Union[Dict[str, "JsonVal"], List["JsonVal"], str, int, float, bool, None]
+
+class JsonData(RootModel):
+    root: Union[Dict[str, "JsonData"],
+                List["JsonData"], str, int, float, bool, None]
 
     @staticmethod
-    def from_obj(obj: Any) -> JsonVal:
+    def from_data(data: Any) -> JsonData:
         try:
-            return JsonVal(obj)
+            return JsonData(data)
         except ValidationError:
-            if obj.__class__ == Union[Dict[str, "JsonVal"], List["JsonVal"]]:
+            if data.__class__ == Union[Dict[str, "JsonData"], List["JsonData"]]:
                 acc = []
-                for item in obj:
+                for item in data:
                     try:
-                        acc.append(JsonVal.from_obj(item))
+                        acc.append(JsonData.from_data(item))
                     except ValidationError:
                         pass
-                return JsonVal(acc)
+                return JsonData(acc)
             else:
                 raise ValueError("Root of obj is not prunable to JSON type")
+
+    @staticmethod
+    def parse(data: Any) -> Jsonable:
+        json_data = JsonData.from_data(data)
+        return json.loads(json_data.stringify())
+
+    def stringify(self):
+        return json.dumps(self.root, cls=JsonValEncoder)
+
+
+class JsonValEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, JsonData):
+            return obj.root
+        return super().default(obj)
 
 
 class Position(RootModel):
@@ -59,30 +78,46 @@ class Position(RootModel):
 class Update(BaseModel):
     timestamp: datetime
     position: Position
-    data: Any
+    data: Jsonable
 
 
 class UpdatePacket(BaseModel):
     timestamp: datetime
     position: List[str]
-    data: JsonVal
+    data: Jsonable
 
     @staticmethod
     def from_update(update: Update) -> UpdatePacket:
         return UpdatePacket(
             timestamp=update.timestamp,
             position=update.position.serialize(),
-            data=JsonVal.from_obj(update.data),
+            data=update.data,
+        )
+
+    def to_update(self) -> Update:
+        return Update(
+            timestamp=self.timestamp,
+            position=Position(self.position),
+            data=self.data,
         )
 
     def json(self):
-        return json.dumps(
-            {"timestamp": self.timestamp, "position": self.position, "data": self.data}
-        )
+        try:
+            return json.dumps(
+                {
+                    "timestamp": self.timestamp.isoformat(),  # Convert datetime to string
+                    "position": self.position,
+                    "data": self.data,  # Convert JsonVal to serializable format
+                }
+            )
+        except Exception as e:
+            print("data", self.data)
+            print("err", e)
+            raise ValueError("Error in converting UpdatePacket to JSON")
 
 
-def update_dict(data: dict, update: UpdatePacket):
-    current = data
+def update_obj(obj: dict, update: UpdatePacket):
+    current = obj
     for key in update.position:
         current = current[key]
     current[update.position[-1]] = update.data
