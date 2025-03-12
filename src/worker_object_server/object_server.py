@@ -60,14 +60,21 @@ class ObjectServer:
             current = current[key]
         return current[position[-1]]
 
-    def handle_incoming_update(self, update: UpdatePacket):
-        self.set_at_position(Position(update.position), update.data)
+    def handle_incoming_update(self, update: Update):
+        self.set_at_position(update.position, update.data)
 
     def set_at_position(self, position: Position, value: Any):
         current = self.data
         for key in position[:-1]:
-            current = current[key]
+            try:
+                current = current[key]
+            except KeyError:
+                current[key] = {}
+                current = current[key]
         current[position[-1]] = value
+
+    def set_at_position_update(self, position: Position, value: Any):
+        self.set_at_position(position, value)
         self.add_update(Update(timestamp=datetime.now(),
                         position=position, data=value))
 
