@@ -82,21 +82,21 @@ class Update(BaseModel):
 
 
 class UpdatePacket(BaseModel):
-    timestamp: datetime
+    timestamp: str
     position: List[str]
     data: Jsonable
 
     @staticmethod
     def from_update(update: Update) -> UpdatePacket:
         return UpdatePacket(
-            timestamp=update.timestamp,
+            timestamp=update.timestamp.isoformat(),
             position=update.position.serialize(),
             data=update.data,
         )
 
     def to_update(self) -> Update:
         return Update(
-            timestamp=self.timestamp,
+            timestamp=datetime.fromisoformat(self.timestamp),
             position=Position(self.position),
             data=self.data,
         )
@@ -105,7 +105,7 @@ class UpdatePacket(BaseModel):
         try:
             return json.dumps(
                 {
-                    "timestamp": self.timestamp.isoformat(),  # Convert datetime to string
+                    "timestamp": self.timestamp,  # Convert datetime to string
                     "position": self.position,
                     "data": self.data,  # Convert JsonVal to serializable format
                 }
