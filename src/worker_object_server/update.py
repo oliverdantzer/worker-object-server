@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Union, TYPE_CHECKING
+from dateutil import parser
 
 from pydantic import BaseModel, RootModel, ValidationError
 
-type Jsonable = Union[Dict[str, "Jsonable"],
-                      List["Jsonable"], str, int, float, bool, None]
-
+if TYPE_CHECKING:
+    Jsonable = Union[Dict[str, 'Jsonable'],
+                    List['Jsonable'],
+                    str,
+                    int,
+                    float,
+                    bool,
+                    None]
+else:
+    Jsonable = Any
 
 class JsonData(RootModel):
     root: Union[Dict[str, "JsonData"],
@@ -96,7 +104,7 @@ class UpdatePacket(BaseModel):
 
     def to_update(self) -> Update:
         return Update(
-            timestamp=datetime.fromisoformat(self.timestamp),
+            timestamp=parser.parse(self.timestamp),
             position=Position(self.position),
             data=self.data,
         )

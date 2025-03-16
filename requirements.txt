@@ -4,3 +4,4 @@
 pydantic
 pytest
 websockets
+python-dateutil
