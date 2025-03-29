@@ -72,13 +72,8 @@ class UpdateServer:
     async def start_recieve(self):
         async with serve(self.handle_recieve, "localhost", self.port) as server:
             await self.stop_event.wait()
-            for websocket in list(self.connections):  # Use list() to avoid modifying the set while iterating
-                try:
-                    await websocket.send(update.json())
-                    print(f"Sent update to {websocket.remote_address}: {update.json()}")
-                except Exception as e:
-                    print(f"Failed to send update: {e}")
-                    self.connections.remove(websocket)  # Remove broken connections
+            for websocket in self.connections:
+                 await websocket.close()
             self.connections.clear()
             server.close()
 
